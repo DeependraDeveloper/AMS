@@ -1,3 +1,7 @@
+# common dir and files
+package-lock.json
+package.json
+
 # Logs
 logs
 *.log
