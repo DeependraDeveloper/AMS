@@ -15,6 +15,7 @@ export let isValidObjectId = function (objectId) {
 };
 
 export let isEmail = function (email) {
+    email = String(email).trim().toLowerCase();
     var emailFormat = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
     if (email !== "" && email.match(emailFormat)) {
         return true;
@@ -24,6 +25,7 @@ export let isEmail = function (email) {
 };
 
 export let isPhone = function (phone) {
+    phone = String(phone).trim().toLowerCase();
     var phoneFormat = /^[6-9]\d{9}$/;
 
     if (phone !== "" && phone.match(phoneFormat)) {
@@ -34,11 +36,20 @@ export let isPhone = function (phone) {
 };
 
 export let isPassword = function (str) {
+    str = String(str).trim().toLowerCase();
     var re = /^(?=.*\d)(?=.*[!@#$%^&*])(?=.*[a-z])(?=.*[A-Z]).{6,16}$/;
-    return re.test(str);
+    return re.test(str) ? true : false;
 };
 
+
+export function Captialize(str){
+    str = String(str).trim().toLowerCase();
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+
 export function convertUTCtoIST(utcDateTime) {
+
     var date = new Date(utcDateTime);
 
     // Convert to IST by adding 5 hours and 30 minutes
