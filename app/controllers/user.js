@@ -50,7 +50,7 @@ export const signup = async (req, res) => {
         let user = await User.create(newUser);
         return res.status(200).json(user);
     } catch (err) {
-        return res.status(400).json({ err: err.message });
+        return res.status(400).json({ message: err.message });
     }
 };
 
@@ -82,7 +82,34 @@ export const signin = async (req, res) => {
 
         return res.status(200).json(copyOfUser);
     } catch (err) {
-        return res.status(400).json({ err: err.message });
+        return res.status(400).json({ message: err.message });
     }
 
+};
+
+
+// reset password
+
+export const resetPassword = async (req, res) => {
+    try {
+        let { phone, password, confirmPassword } = req.body;
+
+        if (!isValidRequestBody(req.body)) throw new Error('Invalid values.Please try again!');
+
+        if (!isValid(phone)) throw new Error('Phone is required.');
+        if (!isPhone(phone)) throw new Error('Invalid phone number.');
+        if (!isValid(password)) throw new Error('Password is required.');
+        if (!isValid(confirmPassword)) throw new Error('Confirm Password is required.');
+
+        if (password !== confirmPassword) throw new Error('Password and Confirm Password must be same.');
+
+        let hassedPassword = await bcrypt.hash(password, 10);
+
+        let user = await User.findOneAndUpdate({ phone: phone }, { password: hassedPassword }, { new: true });
+        if (!user) throw new Error('User not found');
+
+        return res.status(200).json(user);
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
 };

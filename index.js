@@ -38,11 +38,10 @@ app.get('/health', (req, res) => {
 });
 
 //! write your routes here
-app.use('/api/v1/registration', RegistrationRouter);
+app.use('/api/v1/user', RegistrationRouter);
 
 app.use((req, res) => {
     res.status(404).json({ message: 'Resource not found 🕵🏽‍♂️\n' });
-    next();
 });
 
 mongoose.connect('mongodb+srv://Deependra1999:Z1ZWVlMvcAFQsu2u@cluster0.4nkid.mongodb.net/ams')
