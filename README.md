@@ -9,3 +9,20 @@ Attendence Management System
 
 # INSTALL DEPENDENCY
 
+Architecture
+ 
+--- TYPES OF USERS
+  - COMPANY (ADMIN)
+  - WORKER (EMPLOYEE)
+
+
+--- SING UP
+  - NAME
+  - EMAIL
+  - PHONE
+  - COMPANY
+  - COMPANY SIZE
+  - ROLE
+  - DEPARTMENT
+  - DESIGNATION
+  

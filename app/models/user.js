@@ -8,8 +8,8 @@ const userSchema = mongoose.Schema({
     },
     role: {
         type: String,
-        required: true,
-        enum: ['admin', 'employee'],
+        enum: ['company', 'employee'],
+        default: 'company',
         trim: true,
     },
     email: {
