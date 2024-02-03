@@ -1,4 +1,4 @@
-import mongoose, { Mongoose } from "mongoose";
+import mongoose from "mongoose";
 
 const leaveSchema = mongoose.Schema({
     leaveType: {
@@ -13,40 +13,35 @@ const leaveSchema = mongoose.Schema({
         trim: true,
     },
     leaveFrom: {
-        type: Date,
+        type: String,
         required: true,
         trim: true,
     },
     leaveTo: {
-        type: Date,
+        type: String,
         required: true,
         trim: true,
     },
     leaveStatus: {
         type: String,
-        required: true,
         enum: ['Pending', 'Approved', 'Rejected'],
         trim: true,
-    },
-    leaveAppliedOn: {
-        type: Date,
-        required: true,
-        trim: true,
+        default : 'Pending'
     },
     leaveAppliedBy: {
-        type: Mongoose.Schema.Types.ObjectId,
-        ref : 'User',
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
         required: true,
         trim: true,
     },
     leaveApprovedBy: {
-        type: Mongoose.Schema.Types.ObjectId,
-        ref : 'User',
-        required: false,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
         trim: true,
+       
     },
     leaveApprovedOn: {
-        type: Date,
+        type: String,
         required: false,
         trim: true,
     },

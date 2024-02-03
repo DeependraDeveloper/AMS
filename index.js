@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import chalk from 'chalk';
 
-import RegistrationRouter from './app/routes/registration.js';
+import UserRouter from './app/routes/user.js';
 
 const app = express();
 
@@ -38,7 +38,7 @@ app.get('/health', (req, res) => {
 });
 
 //! write your routes here
-app.use('/api/v1/user', RegistrationRouter);
+app.use('/api/v1/user', UserRouter);
 
 app.use((req, res) => {
     res.status(404).json({ message: 'Resource not found 🕵🏽‍♂️\n' });

@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { isEmail, isPhone, isValid, isValidRequestBody } from '../utils/common_func.js';
 import Attendence from '../models/attendence.js';
+import Leave from '../models/leave.js';
 
 
 // signup
@@ -143,7 +144,13 @@ export const clockInOut = async (req, res) => {
         let endOfDay = new Date();
         endOfDay.setHours(23, 59, 59, 999);
 
+
+
         let todayAttendence = await Attendence.findOne({ user: id, createdAt: { $gte: startOfDay, $lt: endOfDay } });
+
+        if (todayAttendence && todayAttendence.inTime !== undefined && todayAttendence.outTime !== undefined && todayAttendence.outTime !== "") {
+            throw new Error('You have already clocked in and out for today.\nPlease try again tomorrow.');
+        }
 
         if (todayAttendence) {
             let clockOut = await Attendence.findOneAndUpdate({ user: id, createdAt: { $gte: startOfDay, $lt: endOfDay } }, { outTime: time }, { new: true });
@@ -170,14 +177,74 @@ export const getAllAttendence = async (req, res) => {
         let endOfDay = new Date();
         endOfDay.setHours(23, 59, 59, 999);
 
-        let todayAttendence = await Attendence.findOne({ user: id, createdAt: { $gte: startOfDay, $lt: endOfDay } });
+        let todayAttendence = await Attendence.findOne({ user: id, createdAt: { $gte: startOfDay, $lte: endOfDay } });
+        console.log(todayAttendence);
 
-        if (!todayAttendence) throw new Error('Attendence not found')
+        if (!todayAttendence) return res.status(200).json({});
         return res.status(200).json(todayAttendence);
     } catch (err) {
         return res.status(400).json({ message: err.message });
     }
 };
+
+
+// Add leave request
+
+export const addLeaveRequest = async (req, res) => {
+    try {
+        let { leaveType, leaveReason, leaveFrom, leaveTo, id } = req.body;
+
+        if (!isValidRequestBody(req.body)) throw new Error('Invalid values.Please try again!');
+
+        if (!isValid(leaveType)) throw new Error('Leave Type is required');
+        if (!isValid(leaveReason)) throw new Error('Leave Reason is required');
+        if (!isValid(leaveFrom)) throw new Error('Leave From is required');
+        if (!isValid(leaveTo)) throw new Error('Leave To is required');
+        if (!isValid(id)) throw new Error('Leave Applied By is required');
+
+        let leave = await Leave.create({
+            leaveType: leaveType,
+            leaveReason: leaveReason,
+            leaveFrom: leaveFrom,
+            leaveTo: leaveTo,
+            leaveAppliedBy: id
+        });
+        return res.status(200).json({ message: 'Leave request submitted successfully!' });
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+
+// Get all leave requests of user
+
+export const getAllLeaveRequests = async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        let findUser = await User.findOne({ _id: id });
+
+        if(findUser.role === 'company'){
+            console.log('user is company');
+            // find all leave requests of that company
+            let users = await User.find({ organization: findUser.organization });
+
+            let userIds = users.map(user => user._id);
+
+            let leaveRequests = await Leave.find({leaveAppliedBy: { $in: userIds }});
+
+            console.log(leaveRequests.length);
+            return res.status(200).json(leaveRequests);
+        }
+
+        console.log('user is not company');
+
+        let leaveRequests = await Leave.find({ leaveAppliedBy: id });
+        return res.status(200).json(leaveRequests);
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+}
 
 
 

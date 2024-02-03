@@ -26,3 +26,7 @@ Architecture
   - DEPARTMENT
   - DESIGNATION
   
+
+--- ROLE
+      - Company - [Date,Clock,add employee,profile,add leave,attendence,all and single]
+      - Employee - [Date,Clock,no add employee,profile,view leave,attendence , all employee]
