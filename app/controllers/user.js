@@ -21,7 +21,6 @@ export const signup = async (req, res) => {
             email,
             password,
             phone,
-
             department,
             designation,
             organization,
@@ -44,9 +43,11 @@ export const signup = async (req, res) => {
         let isPhoneRegistered = await User.findOne({ phone: phone });
         if (isPhoneRegistered) throw new Error('Phone is already registered');
 
-
         let isEmailRegistered = await User.findOne({ email: email });
         if (isEmailRegistered) throw new Error('Email is already registered');
+
+        let isOrganizationRegistered = await User.findOne({ organization: organization });
+        if (isOrganizationRegistered) throw new Error('Organization is already registered');
 
         let hassedPassword = await bcrypt.hash(password, 10);
 
@@ -167,7 +168,7 @@ export const clockInOut = async (req, res) => {
 
 
 // Get all attendence of user
-export const getAllAttendence = async (req, res) => {
+export const getTodayAttendence = async (req, res) => {
     try {
         const id = req.params.id;
         // findTodayAttendence
@@ -178,7 +179,6 @@ export const getAllAttendence = async (req, res) => {
         endOfDay.setHours(23, 59, 59, 999);
 
         let todayAttendence = await Attendence.findOne({ user: id, createdAt: { $gte: startOfDay, $lte: endOfDay } });
-        console.log(todayAttendence);
 
         if (!todayAttendence) return res.status(200).json({});
         return res.status(200).json(todayAttendence);
@@ -189,7 +189,6 @@ export const getAllAttendence = async (req, res) => {
 
 
 // Add leave request
-
 export const addLeaveRequest = async (req, res) => {
     try {
         let { leaveType, leaveReason, leaveFrom, leaveTo, id } = req.body;
@@ -233,13 +232,16 @@ export const getAllLeaveRequests = async (req, res) => {
 
             let leaveRequests = await Leave.find({leaveAppliedBy: { $in: userIds }});
 
-            console.log(leaveRequests.length);
+            if(!leaveRequests) leaveRequests = [];
+
             return res.status(200).json(leaveRequests);
         }
 
         console.log('user is not company');
 
         let leaveRequests = await Leave.find({ leaveAppliedBy: id });
+
+        if(!leaveRequests) leaveRequests = [];
         return res.status(200).json(leaveRequests);
     } catch (err) {
         return res.status(400).json({ message: err.message });
@@ -247,5 +249,95 @@ export const getAllLeaveRequests = async (req, res) => {
 }
 
 
+// add users 
+export const addUser = async (req, res) => {
+    /*
+       enum: ['admin', 'employee'], role - > radio button
+       enum: ['IT', 'HR', 'Marketing', 'Sales', 'Finance', 'Operations', 'Design', 'Others'], -> dropdown and custom input
+       enum: ['Manager', 'Team Lead', 'Developer', 'Designer', 'Tester', 'Others'], -> dropdown and custom input
+    */
+    try {
+        let {
+            id,
+            name,
+            email,
+            password,
+            phone,
+            department,
+            designation,
+        } = req.body;
+
+        if (!isValidRequestBody(req.body)) throw new Error('Invalid values.Please try again!');
+        if (!isValid(name)) throw new Error('Name is required');
+        if (!isValid(email)) throw new Error('Email is required');
+        if (!isEmail(email)) throw new Error('Invalid email.');
+        if (!isValid(password)) throw new Error('Password is required');
+        if (!isValid(phone)) throw new Error('Phone is required');
+        if (!isPhone(phone)) throw new Error('Invalid phone number.');
+        if (!isValid(department)) throw new Error('Department is required');
+        if (!isValid(designation)) throw new Error('Designation is required');
+
+        // CHECK PHONE AND EMAIL IS ALREADY REGISTERED OR NOT
+
+        let isPhoneRegistered = await User.findOne({ phone: phone });
+        if (isPhoneRegistered) throw new Error('Phone is already registered');
+
+        let isEmailRegistered = await User.findOne({ email: email });
+        if (isEmailRegistered) throw new Error('Email is already registered');
+  
+        let findOrganization = await User.findOne({ _id: id });
+        if (!findOrganization) throw new Error('User not found');
+      
+        let hassedPassword = await bcrypt.hash(password, 10);
+
+        req.body.password = hassedPassword;
+        req.body.role  = "employee";
+        req.body.organization = findOrganization.organization;
+
+        const newUser = new User(req.body);
 
 
+        let user = await User.create(newUser);
+
+        let token = jwt.sign({ id: user._id, role: user.role }, 'SECRET101', { expiresIn: '50d' });
+        // COPY USER OBJECT AND ADD TOKEN TO IT
+        let copyOfUser = user.toObject();
+        copyOfUser.token = token;
+
+        return res.status(200).json({message: 'User added successfully!'});
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+
+// get all attendence of user
+
+export const getAllAttendence = async (req, res) => {
+    try {
+        const id = req.params.id;
+        
+        let attendences = await Attendence.find({ user: id});
+
+        if (!attendences) attendences = [];
+        return res.status(200).json(attendences);
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+
+// get all users of company
+
+export const getAllUsers = async (req, res) => {
+    try {
+        const organization = req.params.organization;
+        
+        let users = await User.find({ organization: organization , role : 'employee'});
+
+        if (!users) users = [];
+        return res.status(200).json(users);
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+}
