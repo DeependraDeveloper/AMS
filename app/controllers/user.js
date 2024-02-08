@@ -52,6 +52,7 @@ export const signup = async (req, res) => {
         let hassedPassword = await bcrypt.hash(password, 10);
 
         req.body.password = hassedPassword;
+        req.body.profilePic = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTTY16sfbiF4kBV6bdqExoUBrDf3Qfna4d8kg&usqp=CAU';
 
         const newUser = new User(req.body);
 
@@ -223,30 +224,30 @@ export const getAllLeaveRequests = async (req, res) => {
 
         let findUser = await User.findOne({ _id: id });
 
-        if(findUser.role === 'company'){
+        if (findUser.role === 'company') {
             console.log('user is company');
             // find all leave requests of that company
             let users = await User.find({ organization: findUser.organization });
 
             let userIds = users.map(user => user._id);
 
-            let leaveRequests = await Leave.find({leaveAppliedBy: { $in: userIds }});
+            let leaveRequests = await Leave.find({ leaveAppliedBy: { $in: userIds } }).populate('leaveAppliedBy').sort({ createdAt: -1 })
 
-            if(!leaveRequests) leaveRequests = [];
+            if (!leaveRequests) leaveRequests = [];
 
             return res.status(200).json(leaveRequests);
         }
 
         console.log('user is not company');
 
-        let leaveRequests = await Leave.find({ leaveAppliedBy: id });
+        let leaveRequests = await Leave.find({ leaveAppliedBy: id }).populate('leaveAppliedBy').sort({ createdAt: -1 });
 
-        if(!leaveRequests) leaveRequests = [];
+        if (!leaveRequests) leaveRequests = [];
         return res.status(200).json(leaveRequests);
     } catch (err) {
         return res.status(400).json({ message: err.message });
     }
-}
+};
 
 
 // add users 
@@ -284,15 +285,16 @@ export const addUser = async (req, res) => {
 
         let isEmailRegistered = await User.findOne({ email: email });
         if (isEmailRegistered) throw new Error('Email is already registered');
-  
+
         let findOrganization = await User.findOne({ _id: id });
         if (!findOrganization) throw new Error('User not found');
-      
+
         let hassedPassword = await bcrypt.hash(password, 10);
 
         req.body.password = hassedPassword;
-        req.body.role  = "employee";
+        req.body.role = "employee";
         req.body.organization = findOrganization.organization;
+        req.body.profilePic = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcReFuNVUscuscAPv7N7laen4v8CC5cb99ZDvi6d_N_-htu6NwOmNSBic_UuZWQAn2YsSP4&usqp=CAU';
 
         const newUser = new User(req.body);
 
@@ -304,7 +306,7 @@ export const addUser = async (req, res) => {
         let copyOfUser = user.toObject();
         copyOfUser.token = token;
 
-        return res.status(200).json({message: 'User added successfully!'});
+        return res.status(200).json({ message: 'User added successfully!' });
     } catch (err) {
         return res.status(400).json({ message: err.message });
     }
@@ -312,12 +314,11 @@ export const addUser = async (req, res) => {
 
 
 // get all attendence of user
-
 export const getAllAttendence = async (req, res) => {
     try {
         const id = req.params.id;
-        
-        let attendences = await Attendence.find({ user: id});
+
+        let attendences = await Attendence.find({ user: id });
 
         if (!attendences) attendences = [];
         return res.status(200).json(attendences);
@@ -328,16 +329,163 @@ export const getAllAttendence = async (req, res) => {
 
 
 // get all users of company
-
 export const getAllUsers = async (req, res) => {
     try {
         const organization = req.params.organization;
-        
-        let users = await User.find({ organization: organization , role : 'employee'});
+
+        let users = await User.find({ organization: organization, role: 'employee' });
 
         if (!users) users = [];
         return res.status(200).json(users);
     } catch (err) {
         return res.status(400).json({ message: err.message });
     }
+};
+
+// update user
+export const updateUser = async (req, res) => {
+    try {
+
+        let {
+            id,
+            name,
+            email,
+            phone,
+            department,
+            designation,
+            organization,
+        } = req.body;
+
+        let updateObj = {};
+
+        if (isValid(name)) updateObj.name = name;
+        if (isValid(email)) updateObj.email = email;
+        if (isValid(phone)) updateObj.phone = phone;
+        if (isValid(department)) updateObj.department = department;
+        if (isValid(designation)) updateObj.designation = designation;
+        if (isValid(organization)) updateObj.organization = organization;
+
+        await User.findOneAndUpdate({ _id: id }, { $set: updateObj }, { new: true });
+
+        return res.status(200).json({ message: 'User updated successfully!' });
+
+    } catch (error) {
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+
+// get user 
+
+export const getUser = async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        let user = await User.findOne({ _id: id });
+
+        if (!user) throw new Error('User not found');
+
+        return res.status(200).json(user);
+    }
+    catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
 }
+
+
+
+// approve or reject leave
+
+export const approveRejectLeave = async (req, res) => {
+    try {
+        const { leaveId, userId } = req.body;
+
+        if (!isValidRequestBody(req.body)) throw new Error('Invalid values.Please try again!');
+
+        let leave = await Leave.findOne({ _id: leaveId });
+
+        if (!leave) throw new Error('Leave not found');
+
+        const { leaveStatus: status } = leave;
+
+        if (status === 'Pending') {
+            let updatedLeave = await Leave.findOneAndUpdate({ _id: leaveId }, { leaveStatus: 'Approved', leaveApprovedBy: userId, leaveApprovedOn: new Date() }, { new: true });
+            return res.status(200).json({ message: 'Leave approved successfully!' });
+        }
+
+        if (status === 'Approved') {
+            let updatedLeave = await Leave.findOneAndUpdate({ _id: leaveId }, { leaveStatus: 'Rejected', leaveApprovedBy: userId, leaveApprovedOn: new Date() }, { new: true });
+            return res.status(200).json({ message: 'Leave rejected successfully!' });
+        }
+
+        if (status === 'Rejected') {
+            let updatedLeave = await Leave.findOneAndUpdate({ _id: leaveId }, { leaveStatus: 'Approved', leaveApprovedBy: userId, leaveApprovedOn: new Date() }, { new: true });
+            return res.status(200).json({ message: 'Leave approved successfully!' });
+        }
+
+        return res.status(200).json({ message: 'Leave status updated successfully!' });
+
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+
+// get attendence csv
+
+export const attendenceCsv = async (req, res) => {
+    try {
+
+        const id = req.params.id;
+
+        let findCompany = await User.findOne({ _id: id }).organization;
+
+        if (!findCompany) throw new Error('User not found');
+
+        let findEmployees = await User.find({ organization: findCompany });
+        let employeeIds = findEmployees.map(employee => employee._id);
+
+        let attendences = await Attendence.find({
+            user: {
+                $in: employeeIds
+            }
+        }).populate("user");
+
+        const csvWriter = createObjectCsvWriter({
+            path: "attendence.csv",
+            header: [
+                { id: "date", title: "DATE" },
+                { id: "employee", title: "EMPLOYEE" },
+                { id: "phone", title: "PHONE" },
+                { id: "inTime", title: "IN TIME" },
+                { id: "outTime", title: "OUT TIME" },
+                { id: "status", title: "STATUS" }
+            ],
+        });
+
+        let finalAttendenceData = [];
+
+
+        for (let attende of attendences) {
+            let details = {};
+            let { user, createdAt, status, inTime, outTime } = attende;
+
+            details.user = user?.name ?? "N/A";
+            details.phone = user?.phone ?? "N/A";
+            details.date = createdAt.toLocaleDateString();
+            details.inTime = inTime;
+            details.outTime = outTime;
+            details.status = status;
+
+
+            finalAttendenceData.push(details);
+            details = {};
+        }
+
+        await csvWriter.writeRecords(finalOrderData);
+        return res.download("attendence.csv");
+    } catch (err) {
+        logger.error(err.message);
+        return res.status(422).json({ message: err.message });
+    }
+};

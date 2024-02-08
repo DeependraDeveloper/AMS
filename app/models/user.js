@@ -6,6 +6,12 @@ const userSchema = mongoose.Schema({
         required: true,
         trim: true,
     },
+    profilePic: {
+        type: String,
+        required: false,
+        trim: true,
+        default:'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcReFuNVUscuscAPv7N7laen4v8CC5cb99ZDvi6d_N_-htu6NwOmNSBic_UuZWQAn2YsSP4&usqp=CAU',
+    },
     role: {
         type: String,
         enum: ['company', 'employee'],
