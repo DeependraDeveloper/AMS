@@ -5,6 +5,7 @@ import cors from 'cors';
 import chalk from 'chalk';
 
 import UserRouter from './app/routes/user.js';
+import { autoClockOut } from './app/crons/autmatic_clockout.js';
 
 const app = express();
 
@@ -45,5 +46,8 @@ app.use((req, res) => {
 });
 
 mongoose.connect('mongodb+srv://Deependra1999:Z1ZWVlMvcAFQsu2u@cluster0.4nkid.mongodb.net/ams')
-    .then(() => app.listen(5000, () => console.log('DB CONNECTED 📘 \nSERVER RUNNING ON PORT 5000 🔥')))
+    .then(() => app.listen(5000, () => {
+        autoClockOut();
+        console.log('DB CONNECTED 📘 \nSERVER RUNNING ON PORT 5000 🔥')
+    }))
     .catch((error) => console.log(error.message));

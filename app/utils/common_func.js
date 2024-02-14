@@ -41,65 +41,29 @@ export let isPassword = function (str) {
     return re.test(str) ? true : false;
 };
 
-
-export function Captialize(str){
-    str = String(str).trim().toLowerCase();
-    return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-
-export function convertUTCtoIST(utcDateTime) {
-
-    var date = new Date(utcDateTime);
-
-    // Convert to IST by adding 5 hours and 30 minutes
-    date.setUTCHours(date.getUTCHours() + 5);
-    date.setUTCMinutes(date.getUTCMinutes() + 30);
-
-    // Format the date
-    var year = date.getUTCFullYear();
-    var month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
-    var day = date.getUTCDate().toString().padStart(2, "0");
-
-    // Format the time
-    var hours = date.getUTCHours();
-    var minutes = date.getUTCMinutes();
-    var seconds = date.getUTCSeconds();
-
-    // Convert to 12-hour format
-    var period = "AM";
-    if (hours >= 12) {
-        period = "PM";
-        if (hours > 12) {
-            hours -= 12;
-        }
+export function calculateTimeDifference(time1, time2) {
+    function timeToSeconds(time) {
+        const [hours, minutes, seconds, meridiem] = time.split(/:| /);
+        const totalSeconds = parseInt(hours, 10) * 3600 + parseInt(minutes, 10) * 60 + parseInt(seconds, 10);
+        return meridiem === 'PM' ? totalSeconds + 12 * 3600 : totalSeconds;
     }
 
-    // Format the IST date and time as a string
-    var istDateTime =
-        day +
-        "-" +
-        month +
-        "-" +
-        year +
-        " " +
-        hours.toString().padStart(2, "0") +
-        ":" +
-        minutes.toString().padStart(2, "0") +
-        ":" +
-        seconds.toString().padStart(2, "0") +
-        " " +
-        period;
+    const seconds1 = timeToSeconds(time1);
+    const seconds2 = timeToSeconds(time2);
 
-    return istDateTime;
+    let differenceSeconds = Math.abs(seconds2 - seconds1);
+
+    // Calculate hours
+    const hours = Math.floor(differenceSeconds / 3600);
+    differenceSeconds %= 3600;
+
+    // Calculate minutes
+    const minutes = Math.floor(differenceSeconds / 60);
+    differenceSeconds %= 60;
+
+    // Seconds remaining
+    const seconds = differenceSeconds;
+
+    return `${hours}:${minutes}:${seconds}`;
 }
 
-export function getHours(startDate, endDate) {
-    // Calculate the difference in milliseconds
-    const diffInMs = endDate.getTime() - startDate.getTime();
-
-    // Convert milliseconds to hours
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-
-    return diffInHours;
-}

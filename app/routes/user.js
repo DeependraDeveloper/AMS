@@ -1,7 +1,7 @@
 
 import express from 'express';
 
-import { signin, signup ,resetPassword,clockInOut,getTodayAttendence,addLeaveRequest,getAllLeaveRequests,addUser,getAllAttendence,getAllUsers,updateUser,getUser,approveRejectLeave,attendenceCsv} from '../controllers/user.js';
+import { signin, signup ,resetPassword,clockInOut,getTodayAttendence,addLeaveRequest,getAllLeaveRequests,addUser,getAllAttendence,getAllUsers,updateUser,getUser,approveRejectLeave,attendenceCsv,getAttendenceByMonthYear,updateAttendence,attendenceCsvMonthWise,getAttendenceByDateRange,updateAttendences} from '../controllers/user.js';
 
 const UserRouter = express.Router();
 
@@ -23,6 +23,15 @@ UserRouter.get('/:id', getUser);
 UserRouter.post('/approve-reject-leave', approveRejectLeave);
 
 UserRouter.get('/attendence-csv/:id', attendenceCsv);
+
+UserRouter.get('/attendence-by-month-year/:id', getAttendenceByMonthYear);
+UserRouter.post('/update-attendence', updateAttendence);
+
+UserRouter.post('/attendence-csv-month-wise', attendenceCsvMonthWise);
+
+UserRouter.post('/attendence-by-date-range', getAttendenceByDateRange);
+
+UserRouter.post('/update-attendences', updateAttendences);
 
 
 

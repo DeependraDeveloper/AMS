@@ -1,9 +1,11 @@
 import User from '../models/user.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { isEmail, isPhone, isValid, isValidRequestBody } from '../utils/common_func.js';
+import { calculateTimeDifference, isEmail, isPhone, isValid, isValidRequestBody } from '../utils/common_func.js';
 import Attendence from '../models/attendence.js';
 import Leave from '../models/leave.js';
+import { createObjectCsvWriter } from 'csv-writer';
+import { isValidObjectId } from 'mongoose';
 
 
 // signup
@@ -147,15 +149,15 @@ export const clockInOut = async (req, res) => {
         endOfDay.setHours(23, 59, 59, 999);
 
 
+        let todayAttendence = await Attendence.findOne({ user: id, createdAt: { $gte: startOfDay, $lt: endOfDay } }).populate('user');
 
-        let todayAttendence = await Attendence.findOne({ user: id, createdAt: { $gte: startOfDay, $lt: endOfDay } });
-
-        if (todayAttendence && todayAttendence.inTime !== undefined && todayAttendence.outTime !== undefined && todayAttendence.outTime !== "") {
+        if (todayAttendence && todayAttendence?.inTime !== undefined && todayAttendence?.outTime !== undefined && todayAttendence?.outTime !== "") {
             throw new Error('You have already clocked in and out for today.\nPlease try again tomorrow.');
         }
 
         if (todayAttendence) {
-            let clockOut = await Attendence.findOneAndUpdate({ user: id, createdAt: { $gte: startOfDay, $lt: endOfDay } }, { outTime: time }, { new: true });
+            let duration = calculateTimeDifference(todayAttendence.inTime, time);
+            let clockOut = await Attendence.findOneAndUpdate({ user: id, createdAt: { $gte: startOfDay, $lt: endOfDay } }, { outTime: time, duration: duration }, { new: true });
             return res.status(200).json({ message: 'Clocked out successfully' });
         }
 
@@ -179,7 +181,7 @@ export const getTodayAttendence = async (req, res) => {
         let endOfDay = new Date();
         endOfDay.setHours(23, 59, 59, 999);
 
-        let todayAttendence = await Attendence.findOne({ user: id, createdAt: { $gte: startOfDay, $lte: endOfDay } });
+        let todayAttendence = await Attendence.findOne({ user: id, createdAt: { $gte: startOfDay, $lte: endOfDay } }).populate('user');
 
         if (!todayAttendence) return res.status(200).json({});
         return res.status(200).json(todayAttendence);
@@ -318,7 +320,9 @@ export const getAllAttendence = async (req, res) => {
     try {
         const id = req.params.id;
 
-        let attendences = await Attendence.find({ user: id });
+        let attendences = await Attendence.find({ user: id })
+            .populate('user')
+            .sort({ createdAt: -1 });
 
         if (!attendences) attendences = [];
         return res.status(200).json(attendences);
@@ -438,11 +442,12 @@ export const attendenceCsv = async (req, res) => {
 
         const id = req.params.id;
 
-        let findCompany = await User.findOne({ _id: id }).organization;
+        let findCompany = await User.findOne({ _id: id });
+
 
         if (!findCompany) throw new Error('User not found');
 
-        let findEmployees = await User.find({ organization: findCompany });
+        let findEmployees = await User.find({ organization: findCompany.organization, role: 'employee' });
         let employeeIds = findEmployees.map(employee => employee._id);
 
         let attendences = await Attendence.find({
@@ -450,6 +455,8 @@ export const attendenceCsv = async (req, res) => {
                 $in: employeeIds
             }
         }).populate("user");
+
+        if (!attendences) attendences = [];
 
         const csvWriter = createObjectCsvWriter({
             path: "attendence.csv",
@@ -459,6 +466,7 @@ export const attendenceCsv = async (req, res) => {
                 { id: "phone", title: "PHONE" },
                 { id: "inTime", title: "IN TIME" },
                 { id: "outTime", title: "OUT TIME" },
+                { id: "duration", title: "DURATION" },
                 { id: "status", title: "STATUS" }
             ],
         });
@@ -468,13 +476,21 @@ export const attendenceCsv = async (req, res) => {
 
         for (let attende of attendences) {
             let details = {};
-            let { user, createdAt, status, inTime, outTime } = attende;
+            let { user, createdAt, status, inTime, outTime, duration } = attende;
 
-            details.user = user?.name ?? "N/A";
-            details.phone = user?.phone ?? "N/A";
+
             details.date = createdAt.toLocaleDateString();
+
+            details.employee = user?.name ?? "N/A";
+
+            details.phone = user?.phone ?? "N/A";
+
             details.inTime = inTime;
+
             details.outTime = outTime;
+
+            details.duration = duration;
+
             details.status = status;
 
 
@@ -482,10 +498,275 @@ export const attendenceCsv = async (req, res) => {
             details = {};
         }
 
-        await csvWriter.writeRecords(finalOrderData);
+        await csvWriter.writeRecords(finalAttendenceData);
         return res.download("attendence.csv");
     } catch (err) {
-        logger.error(err.message);
-        return res.status(422).json({ message: err.message });
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+// get attendence by month and year
+export const getAttendenceByMonthYear = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const findAllAttendences = await Attendence.find({ user: id })
+            .populate("user")
+            .sort({ createdAt: 1 });
+
+        let attendenceData = [];
+
+        // Group attendances by month and year
+        const groupedAttendances = findAllAttendences.reduce((acc, attendence) => {
+            const { createdAt } = attendence;
+            const month = createdAt.getMonth();
+            const year = createdAt.getFullYear();
+            const key = `${month}-${year}`;
+            if (!acc[key]) {
+                acc[key] = [];
+            }
+            acc[key].push(attendence);
+            return acc;
+        }, {});
+
+        // Create an array of objects with month, year and attendences
+        for (const key in groupedAttendances) {
+            if (groupedAttendances.hasOwnProperty(key)) {
+                const [month, year] = key.split('-');
+                const attendences = groupedAttendances[key].map(attendance => attendance);
+                attendenceData.push({
+                    month: parseInt(month) + 1,
+                    year: parseInt(year),
+                    attendences
+                });
+            }
+        }
+
+        return res.status(200).json(attendenceData);
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+}
+
+// update attendence
+
+export const updateAttendence = async (req, res) => {
+    try {
+
+        const { id, inTime, outTime, status } = req.body;
+
+        if (!isValidRequestBody(req.body)) throw new Error('Invalid values.Please try again!');
+
+        let updateObj = {};
+
+        if (isValid(status)) updateObj.status = status;
+        if (isValid(inTime)) {
+            let duration = calculateTimeDifference(inTime, outTime);
+            updateObj.inTime = inTime;
+            updateObj.duration = duration;
+        }
+        if (isValid(outTime)) {
+            let duration = calculateTimeDifference(inTime, outTime);
+            updateObj.outTime = outTime;
+            updateObj.duration = duration;
+        }
+        if (isValid(inTime) && isValid(outTime)) {
+            let duration = calculateTimeDifference(inTime, outTime);
+            updateObj.duration = duration;
+        }
+
+        await Attendence.findOneAndUpdate({ _id: id }, { $set: updateObj }, { new: true });
+
+        return res.status(200).json({ message: 'Attendence updated successfully!' });
+
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+
+
+// get attendence csv
+
+export const attendenceCsvMonthWise = async (req, res) => {
+    try {
+
+        let { id, month, year } = req.body;
+
+        month = parseInt(month);
+        year = parseInt(year);
+
+        let startDate = new Date(year, month - 1, 1);
+        startDate.setHours(0, 0, 0, 0);
+
+        let endDate = new Date(year, month, 1);
+        endDate.setHours(23, 59, 59, 999);
+
+        let attendences = await Attendence.find({
+            user: id,
+            createdAt: {
+                $gt: startDate,
+                $lt: endDate
+            }
+        }).populate("user");
+
+        if (!attendences) attendences = [];
+
+        const csvWriter = createObjectCsvWriter({
+            path: "attendenceMonthWise.csv",
+            header: [
+                { id: "date", title: "DATE" },
+                { id: "employee", title: "EMPLOYEE" },
+                { id: "phone", title: "PHONE" },
+                { id: "inTime", title: "IN TIME" },
+                { id: "outTime", title: "OUT TIME" },
+                { id: "duration", title: "DURATION" },
+                { id: "status", title: "STATUS" }
+            ],
+        });
+
+        let finalAttendenceData = [];
+
+
+        for (let attende of attendences) {
+            let details = {};
+            let { user, createdAt, status, inTime, outTime, duration } = attende;
+
+
+            details.date = createdAt.toLocaleDateString();
+
+            details.employee = user?.name ?? "N/A";
+
+            details.phone = user?.phone ?? "N/A";
+
+            details.inTime = inTime;
+
+            details.outTime = outTime;
+
+            details.duration = duration;
+
+            details.status = status;
+
+
+            finalAttendenceData.push(details);
+            details = {};
+        }
+
+        await csvWriter.writeRecords(finalAttendenceData);
+        return res.download("attendenceMonthWise.csv");
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+
+// get attendence by date range
+export const getAttendenceByDateRange = async (req, res) => {
+    try {
+        let {
+            id,
+            startDate,
+            endDate
+        } = req.body;
+
+
+        if (!isValid(id)) throw new Error('User id is required');
+        if (!isValidObjectId(id)) throw new Error('Invalid user id');
+        if (!isValid(startDate) || !isValid(endDate)) throw new Error('Either start date or end date is missing');
+
+        if (isValid(startDate)) {
+            startDate = new Date(startDate);
+            startDate.setHours(0, 0, 0, 0);
+        }
+
+        if (isValid(endDate)) {
+            endDate = new Date(endDate);
+            endDate.setHours(23, 59, 59, 999);
+        }
+
+        let findCompany = await User.findOne({ _id: id });
+        if (!findCompany) throw new Error('User not found');
+
+        let findEmployees = await User.find({ organization: findCompany.organization, role: 'employee' });
+        let employeeIds = findEmployees.map(employee => employee._id);
+
+        let dateQuery = {};
+
+        if (isValid(startDate) && isValid(endDate)) {
+            dateQuery = {
+                createdAt: {
+                    $gte: startDate,
+                    $lte: endDate
+                }
+            }
+        }
+
+        if (isValid(startDate) && !isValid(endDate)) {
+            dateQuery = {
+                createdAt: startDate
+            }
+        }
+
+        if (!isValid(startDate) && isValid(endDate)) {
+            dateQuery = {
+                createdAt: endDate
+            }
+        }
+
+        let attendences = await Attendence.find({
+            user: {
+                $in: employeeIds
+            },
+            ...dateQuery
+        }).populate("user");
+
+        if (!attendences) attendences = [];
+
+        return res.status(200).json(attendences);
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
+    }
+};
+
+
+
+// update all attendences
+
+export const updateAttendences = async (req, res) => {
+    try {
+        const { ids, inTime, outTime, status } = req.body;
+
+        if (!isValidRequestBody(req.body)) throw new Error('Invalid values.Please try again!');
+
+
+        for (let id of ids) {
+
+            let updateObj = {};
+            if (isValid(status)) updateObj.status = status;
+
+            if (isValid(inTime)) {
+                let duration = calculateTimeDifference(inTime, outTime);
+                updateObj.inTime = inTime;
+                updateObj.duration = duration;
+            }
+
+            if (isValid(outTime)) {
+                let duration = calculateTimeDifference(inTime, outTime);
+                updateObj.outTime = outTime;
+                updateObj.duration = duration;
+            }
+
+            if (isValid(inTime) && isValid(outTime)) {
+                let duration = calculateTimeDifference(inTime, outTime);
+                updateObj.duration = duration;
+            }
+
+            await Attendence.findOneAndUpdate({ _id: id }, { $set: updateObj }, { new: true });
+        }
+
+        return res.status(200).json({ message: 'Attendence updated successfully!' });
+
+    } catch (err) {
+        return res.status(400).json({ message: err.message });
     }
 };

@@ -19,8 +19,8 @@ const attendenceSchema = mongoose.Schema({
         default: ''
     },
     duration: {
-        type: Number,
-        default: 0
+        type: String,
+        default: ''
     },
     isUpdated: {
         type: Boolean,
